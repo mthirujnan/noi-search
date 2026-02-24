@@ -269,24 +269,24 @@
       '<p style="color:#e94560">Could not load book data.<br>Please run <code>python3 scraper.py</code> first, then refresh.</p>';
   }
 
-  function showWelcome() {
-    const pills = bookData.map(p =>
-      `<span class="page-pill" onclick="quickSearch('${p.title}')">${p.title}</span>`
-    ).join('');
+  // Strip diacritics: normalize to NFD then remove combining marks
+  // This lets plain English match Sanskrit (e.g. "Krishna" matches "Kṛṣṇa")
+  function normalize(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
 
+  // Pre-compute normalized text for every page once at load time
+  bookData.forEach(p => { p.normalizedText = normalize(p.text); });
+
+  function showWelcome() {
     document.getElementById('main').innerHTML = `
       <div class="welcome">
         <h2>Search the Nectar of Instruction</h2>
         <p>Type any word, phrase, Sanskrit term, or concept.<br/>
-           Results will show matching passages with the surrounding context.</p>
-        <div class="page-pills">${pills}</div>
+           Results will show matching passages with surrounding context.<br/><br/>
+           <em>Tip: plain English matches Sanskrit — try "Krishna", "gosvami", "bhakti"</em></p>
       </div>
     `;
-  }
-
-  function quickSearch(term) {
-    document.getElementById('searchInput').value = term;
-    search();
   }
 
   function setFilter(filter, btn) {
@@ -301,7 +301,9 @@
     const query = document.getElementById('searchInput').value.trim();
     if (!query) return;
 
-    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    // Normalize query so plain English matches Sanskrit diacritics
+    const normalizedQuery = normalize(query);
+    const terms = normalizedQuery.split(/\s+/).filter(Boolean);
 
     let pool = bookData;
     if (activeFilter !== 'all') {
@@ -311,22 +313,19 @@
     const matches = [];
 
     for (const page of pool) {
-      const text = page.text.toLowerCase();
-      const allMatch = terms.every(t => text.includes(t));
+      // Search in normalized text (diacritics stripped)
+      const allMatch = terms.every(t => page.normalizedText.includes(t));
       if (!allMatch) continue;
 
-      // Find best snippet around first match
+      // Find snippet position in normalized text, use same index on original
       const firstTerm = terms[0];
-      const idx = text.indexOf(firstTerm);
+      const idx = page.normalizedText.indexOf(firstTerm);
       const start = Math.max(0, idx - 120);
       const end = Math.min(page.text.length, idx + 300);
       let snippet = (start > 0 ? '...' : '') + page.text.slice(start, end) + (end < page.text.length ? '...' : '');
 
-      // Highlight all search terms
-      terms.forEach(term => {
-        const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
-        snippet = snippet.replace(regex, '<mark>$1</mark>');
-      });
+      // Highlight words that match any search term after normalization
+      snippet = highlightSnippet(snippet, terms);
 
       matches.push({ page, snippet });
     }
@@ -361,6 +360,16 @@
     `).join('');
 
     document.getElementById('main').innerHTML = `<div class="results">${cards}</div>`;
+  }
+
+  // Highlight words in a snippet that match search terms after normalization
+  // This handles diacritics: "Krishna" will highlight "Kṛṣṇa"
+  function highlightSnippet(snippet, terms) {
+    return snippet.split(/(\s+)/).map(word => {
+      const normWord = normalize(word);
+      const isMatch = terms.some(t => normWord.includes(t));
+      return isMatch ? `<mark>${word}</mark>` : word;
+    }).join('');
   }
 
   function escapeRegex(str) {
