@@ -125,7 +125,13 @@ def scrape():
     with open("data.json", "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
 
-    print(f"\nDone! Saved {len(results)} pages to data.json")
+    # Also write data.js so index.html works when opened as a local file
+    with open("data.js", "w", encoding="utf-8") as f:
+        f.write("const BOOK_DATA = ")
+        json.dump(results, f, ensure_ascii=False)
+        f.write(";")
+
+    print(f"\nDone! Saved {len(results)} pages to data.json and data.js")
 
 
 if __name__ == "__main__":
