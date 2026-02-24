@@ -327,7 +327,7 @@
       // Highlight words that match any search term after normalization
       snippet = highlightSnippet(snippet, terms);
 
-      matches.push({ page, snippet });
+      matches.push({ page, snippet, terms });
     }
 
     renderResults(query, matches);
@@ -349,15 +349,17 @@
       return;
     }
 
-    const cards = matches.map(({ page, snippet }) => `
+    const cards = matches.map(({ page, snippet, terms }) => {
+      const highlightUrl = buildHighlightUrl(page.url, terms, page.text);
+      return `
       <div class="card">
         <div class="card-header">
           <span class="card-title">${escapeHtml(page.title)}</span>
-          <a class="card-link" href="${page.url}" target="_blank">Read on vedabase.io ↗</a>
+          <a class="card-link" href="${highlightUrl}" target="_blank">Read on vedabase.io ↗</a>
         </div>
         <div class="card-snippet">${snippet}</div>
       </div>
-    `).join('');
+    `}).join('');
 
     document.getElementById('main').innerHTML = `<div class="results">${cards}</div>`;
   }
@@ -370,6 +372,33 @@
       const isMatch = terms.some(t => normWord.includes(t));
       return isMatch ? `<mark>${word}</mark>` : word;
     }).join('');
+  }
+
+  // Find the actual words in the original text that match the search terms.
+  // e.g. query "Krishna" finds "Kṛṣṇa" in the text and returns that.
+  // Used to build the URL fragment so the browser highlights the real word.
+  function findOriginalMatchWords(originalText, terms) {
+    const words = originalText.split(/\s+/);
+    const found = [];
+    for (const term of terms) {
+      for (const word of words) {
+        const clean = word.replace(/[.,;:!?()\[\]"']/g, '');
+        if (normalize(clean).includes(term) && clean.length > 0) {
+          found.push(clean);
+          break;
+        }
+      }
+    }
+    return found;
+  }
+
+  // Build URL with text fragment: https://page#:~:text=Kṛṣṇa
+  // Browser opens the page, scrolls to and highlights the matched word.
+  function buildHighlightUrl(baseUrl, terms, originalText) {
+    const matchWords = findOriginalMatchWords(originalText, terms);
+    if (matchWords.length === 0) return baseUrl;
+    const fragment = matchWords.map(w => encodeURIComponent(w)).join('&text=');
+    return `${baseUrl}#:~:text=${fragment}`;
   }
 
   function escapeRegex(str) {
