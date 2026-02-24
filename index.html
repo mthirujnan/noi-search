@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Nectar of Instruction — Search</title>
+  <script src="data.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -258,18 +259,15 @@
   let bookData = [];
   let activeFilter = 'all';
 
-  // Load the scraped data
-  fetch('data.json')
-    .then(r => r.json())
-    .then(data => {
-      bookData = data;
-      document.getElementById('loading').style.display = 'none';
-      showWelcome();
-    })
-    .catch(() => {
-      document.getElementById('loading').innerHTML =
-        '<p>Could not load data.json. Please run <code>python3 scraper.py</code> first.</p>';
-    });
+  // Load from the embedded data.js script
+  if (typeof BOOK_DATA !== 'undefined' && BOOK_DATA.length > 0) {
+    bookData = BOOK_DATA;
+    document.getElementById('loading').style.display = 'none';
+    showWelcome();
+  } else {
+    document.getElementById('loading').innerHTML =
+      '<p style="color:#e94560">Could not load book data.<br>Please run <code>python3 scraper.py</code> first, then refresh.</p>';
+  }
 
   function showWelcome() {
     const pills = bookData.map(p =>
